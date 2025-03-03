@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { fetchLessonById, updateLesson } from "../actions";
@@ -8,8 +8,6 @@ import {
   Book,
   Save,
   Video,
-  User,
-  Users,
   CheckCircle,
   HelpCircle,
   Plus,
@@ -17,8 +15,14 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-// shadcn/ui
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +36,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { lessonZodSchema, quizQuestionSchema } from "@/lib/schema/lessonSchema";
+import { lessonZodSchema } from "@/lib/schema/lessonSchema";
+import Spinner from "@/components/Spinner";
 
 function getYoutubeEmbedUrl(url) {
   if (!url) return "";
@@ -45,7 +50,9 @@ export default function LessonForm() {
   const { lessonId } = useParams();
   const router = useRouter();
 
-  // We’ll load the data into RHF when it arrives
+  // ADD LOADING STATE
+  const [loading, setLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -64,74 +71,83 @@ export default function LessonForm() {
       teacher: "",
       student: "",
       completed: false,
-      quiz: [], 
+      quiz: [],
     },
   });
 
-  // We'll handle the dynamic quiz array with useFieldArray
   const { fields: quizFields, append, remove } = useFieldArray({
     control,
     name: "quiz",
   });
 
-  // 1) Load data on mount
   useEffect(() => {
     const loadLesson = async () => {
       if (!lessonId) return;
-      const lesson = await fetchLessonById(lessonId);
-      if (!lesson) return; // handle error
-      
-      // Set form default values
-      setValue("_id", lesson._id);
-      setValue("title", lesson.title);
-      setValue("description", lesson.description || "");
-      setValue("videoUrl", lesson.videoUrl || "");
-      setValue("storageType", lesson.storageType || "external");
-      setValue("completed", lesson.completed || false);
-      setValue("teacher", lesson.teacher || "");
-      setValue("student", lesson.student || "");
 
-      // set quiz
-      setValue("quiz", lesson.quiz || []);
+      // SET LOADING START
+      setLoading(true);
+
+      try {
+        const lesson = await fetchLessonById(lessonId);
+        if (!lesson) {
+          toast("Lesson not found!");
+          return;
+        }
+
+        // populate the form
+        setValue("_id", lesson._id);
+        setValue("title", lesson.title);
+        setValue("description", lesson.description || "");
+        setValue("videoUrl", lesson.videoUrl || "");
+        setValue("storageType", lesson.storageType || "external");
+        setValue("completed", lesson.completed || false);
+        setValue("teacher", lesson.teacher || "");
+        setValue("student", lesson.student || "");
+        setValue("quiz", lesson.quiz || []);
+      } catch (error) {
+        console.error("Error fetching lesson:", error);
+        toast("Error loading lesson data");
+      } finally {
+        // SET LOADING END
+        setLoading(false);
+      }
     };
+
     loadLesson();
   }, [lessonId, setValue]);
 
   const onSubmit = async (formData) => {
-        console.log('Form Data Before Submission:', formData);
-
-        // Ensure teacher and student IDs are preserved if they are not changed
-        const updatedData = {
-            title: formData.title,
-            description: formData.description || "", // Ensure empty description is handled
-            videoUrl: formData.videoUrl, // Required field
-            storageType: formData.storageType || "external", // Default to "external" if missing
-            completed: formData.completed,
-            quiz: formData.quiz || [], // Default to empty array if no quiz
-
-            // Ensure teacher and student IDs are kept if they already exist
-            teacher: formData.teacher || null,
-            student: formData.student || null,
-        };
-
-        try {
-            // Call update function with updated data
-            await updateLesson(lessonId, updatedData);
-
-            toast("Lesson Updated");
-
-            router.push("/teacher"); // Redirect to teacher's dashboard
-        } catch (err) {
-            console.error("Error updating lesson:", err);
-            toast("Error Updating Lesson, try again later");
-        }
+    const updatedData = {
+      title: formData.title,
+      description: formData.description || "",
+      videoUrl: formData.videoUrl,
+      storageType: formData.storageType || "external",
+      completed: formData.completed,
+      quiz: formData.quiz || [],
+      teacher: formData.teacher || null,
+      student: formData.student || null,
     };
 
+    try {
+      await updateLesson(lessonId, updatedData);
+      toast("Lesson Updated");
+      router.push("/teacher");
+    } catch (err) {
+      console.error("Error updating lesson:", err);
+      toast("Error Updating Lesson, try again later");
+    }
+  };
 
-  // watchers for debugging
   const showData = watch();
 
-  // The UI with Tabs
+  // IF LOADING, SHOW A SPINNER OR LOADING MESSAGE
+  if (loading) {
+    return (
+      <Spinner />
+    );
+  }
+
+  // OTHERWISE, SHOW THE FORM
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-4xl mx-auto">
       <Card className="border-gray-200 shadow-sm">
@@ -140,9 +156,7 @@ export default function LessonForm() {
             <Book className="h-5 w-5 text-green-600" />
             <CardTitle>Edit Lesson</CardTitle>
           </div>
-          <CardDescription>
-            Update the lesson details, content, and quiz questions
-          </CardDescription>
+          <CardDescription>Update the lesson details, content, and quiz questions</CardDescription>
         </CardHeader>
 
         <Tabs defaultValue="details" className="w-full">
@@ -187,9 +201,6 @@ export default function LessonForm() {
                 <Switch
                   id="completed"
                   {...register("completed")}
-                  // react-hook-form doesn't natively support a "checked" prop on Switch
-                  // We can do it by using onCheckedChange or watch("completed").
-                  // For simplicity, let's watch the value:
                   checked={showData.completed}
                   onCheckedChange={(val) => setValue("completed", val)}
                 />
@@ -278,7 +289,6 @@ export default function LessonForm() {
                     <div className="space-y-3">
                       <Label>Options</Label>
                       <RadioGroup
-                        // watch correct answer
                         value={watch(`quiz.${questionIndex}.correctAnswer`)}
                         onValueChange={(val) =>
                           setValue(`quiz.${questionIndex}.correctAnswer`, val)

@@ -41,7 +41,7 @@ export default function AssignLessonPage() {
       if (session?.user?.id) {
         try {
           const studentsList = await fetchStudentsByTeacher(session.user.id);
-          
+        
           setStudents(studentsList);
         } catch (error) {
           console.error("Failed to fetch students:", error);
@@ -115,11 +115,13 @@ export default function AssignLessonPage() {
           <label className="block font-medium mb-1">Select Student</label>
           <select className="w-full p-2 border rounded-md" {...register("studentId")}>
             <option value="">-- Select Student --</option>
-            {students.map((s) => (
-              <option key={s.userId} value={s.userId}>
-                {s.name}
-              </option>
-            ))}
+              {Array.isArray(students) ? (
+                students.map((s) => (
+                  <option key={s.userId} value={s.userId}>{s.name}</option>
+                ))
+              ) : (
+                <option disabled>{students.error || "No students available"}</option>
+              )}
           </select>
           {errors.studentId && <p className="text-red-500 text-sm">{errors.studentId.message}</p>}
         </div>

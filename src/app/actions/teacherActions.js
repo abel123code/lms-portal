@@ -3,6 +3,7 @@
 import Teacher from "@/lib/modal/Teacher";
 import Student from "@/lib/modal/Student";
 import connectToDB from "@/lib/mongodb";
+import User from "@/lib/modal/User";
 
 export async function fetchStudentsByTeacher(userId) {
     try {
@@ -40,7 +41,7 @@ export async function fetchStudentsByTeacher(userId) {
             };
         });
 
-        //console.log('safeData:::', safeData)
+        console.log('fectch student by teacher data:::', safeData)
     
         return safeData;
     } catch (error) {
