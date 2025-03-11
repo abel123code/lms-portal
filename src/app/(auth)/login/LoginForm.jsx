@@ -14,7 +14,7 @@ import { LucideLogIn } from "lucide-react";
 
 export default function LoginForm() {
   async function handleGoogleLogin() {
-    console.log("Google login triggered!!");
+    //console.log("Google login triggered!!");
     // Uncomment this when enabling Google OAuth
     await signIn("google",{ callbackUrl: "/student" });
   }

@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { BookCheck } from "lucide-react";
 import { toast } from "sonner";
+import { Upload, File, X } from 'lucide-react'
+import LessonPageHeader from "@/components/LessonPageHeader";
 
 // Zod schema for quiz questions
 const quizQuestionSchema = z.object({
@@ -28,11 +30,13 @@ const lessonFormSchema = z.object({
   videoFile: z.any().optional(), // We'll ignore file in the server action
   videoUrl: z.string().optional(),
   quiz: z.array(quizQuestionSchema).optional(),
+  assignmentFile: z.any().optional(),
 });
 
 export default function AssignLessonPage() {
   const { data: session } = useSession();
   const [students, setStudents] = useState([]);
+  const [fileName, setFileName] = useState(null);
   const router = useRouter();
 
   // Fetch students when teacher ID is available
@@ -88,9 +92,14 @@ export default function AssignLessonPage() {
     // Convert the quiz array to a JSON string
     formData.append("quiz", JSON.stringify(data.quiz || []));
 
+    // Add the PDF file if it exists
+    if (data.assignmentFile?.length) {
+      formData.append("assignmentFile", data.assignmentFile[0]); // single PDF
+    }
+
     try {
       const lessonId = await assignLessonAction(formData);
-      toast(`Lesson assigned successfully! (ID: ${lessonId})`);
+      toast(`Lesson assigned successfully!`);
       router.push('/teacher');
     } catch (err) {
       console.error("Error assigning lesson:", err);
@@ -99,16 +108,16 @@ export default function AssignLessonPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 shadow-md rounded-md mt-2">
-      <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 pb-4">
-        <div className="flex items-center gap-2">
+    <div className="max-w-2xl mx-auto p-6 shadow-lg rounded-md mt-4">
+      <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 pb-4 rounded-sm mb-2">
+        <div className="flex items-center gap-2 flex-col">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
             <BookCheck className="h-4 w-4 text-gray-900" />
           </div>
           <h3 className="text-lg font-medium text-gray-900">Assign New Lesson</h3>
+          <p className="text-sm text-gray-600">Create a new lesson for a student</p>
         </div>
       </CardHeader>
-
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Student Select */}
         <div>
@@ -164,6 +173,47 @@ export default function AssignLessonPage() {
             className="w-full p-2 border rounded-md"
             {...register("videoUrl")}
           />
+        </div>
+
+        {/* PDF Assignment File Upload */}
+        <div>
+          <label className="block font-medium mb-1">Assignment PDF</label>
+          <p className="text-xs text-gray-500 mb-2">
+            Upload a PDF that the student can download as homework instructions.
+          </p>
+          {/* File Upload Field */}
+          <label
+            htmlFor="assignmentFile"
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100
+                      text-gray-700 rounded cursor-pointer hover:bg-gray-200"
+          >
+            <Upload className="text-gray-500" size={18} />
+            <span>Upload PDF</span>
+            {/* Hide the real file input, but still register it with react-hook-form */}
+            <input
+              id="assignmentFile"
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              {...register("assignmentFile", {
+                onChange: (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setFileName(file.name);
+                  }
+                },
+              })}
+            />
+            {fileName && (
+              <div className="mt-2 flex items-center space-x-2 text-gray-700">
+                <File className="text-red-500" size={18} />
+                <p className="text-sm">{fileName}</p>
+              </div>
+            )}
+          </label>
+          {errors.assignmentFile && (
+            <p className="text-red-500 text-sm">{errors.assignmentFile.message}</p>
+          )}
         </div>
 
         {/* Quiz (Dynamic Fields) */}

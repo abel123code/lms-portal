@@ -3,6 +3,7 @@ import { fetchLessonsByStudent } from "./actions";
 import BriefAssignmentCard from "./BriefAssignmentCard";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
+import LessonPageHeader from "@/components/LessonPageHeader";
 
 export default async function StudentPage() {
   const session = await getServerSession(authOptions);
@@ -15,7 +16,7 @@ export default async function StudentPage() {
   
   return (
     <div className="mx-auto p-6 bg-muted min-h-screen w-full">
-      <h1 className="text-2xl font-semibold mb-4">My Lessons</h1>
+      <LessonPageHeader header={'My Lessons'} subheader={'Explore and manage your assigned lessons'} />
 
       {lessons.length === 0 ? (
         <p className="text-center text-gray-600">No lessons assigned yet.</p>

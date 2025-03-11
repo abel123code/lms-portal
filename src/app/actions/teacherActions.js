@@ -41,7 +41,7 @@ export async function fetchStudentsByTeacher(userId) {
             };
         });
 
-        console.log('fectch student by teacher data:::', safeData)
+        //console.log('fectch student by teacher data:::', safeData)
     
         return safeData;
     } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle, PlayCircle } from "lucide-react";
+import { CheckCircle, PlayCircle, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -10,13 +10,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { updateLesson } from "../actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { getAssignmentDownloadUrl } from "../actions";
 
 export default function LearningPage({ lessonData }) {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
-    const router = useRouter();
+  const router = useRouter();
+  
   // Convert YouTube URL to embedded format
   const getYoutubeEmbedUrl = (url) => {
     if (!url) return "";
@@ -50,6 +52,19 @@ export default function LearningPage({ lessonData }) {
     setSelectedAnswer(null);
     setIsSubmitted(false);
     setIsCorrect(false);
+  };
+
+  const handleDownloadAssignment = async () => {
+    try {
+      const url = await getAssignmentDownloadUrl(lessonData._id);
+
+      // 2) Then open in a new tab or force download
+      //    Option A: open in a new tab
+      window.open(url, "_blank");
+
+    } catch (error) {
+      console.error("Failed to get presigned URL:", error);
+    }
   };
 
   return (
@@ -89,6 +104,32 @@ export default function LearningPage({ lessonData }) {
           <CardContent className="pt-4">
             <p className="text-lg text-slate-600">{lessonData.description}</p>
           </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="bg-slate-50 border-b border-slate-100">
+            <CardTitle className="flex items-center gap-2 text-slate-800">
+              <FileText className="h-5 w-5 text-slate-600" />
+              Assignment
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">View Your Assignment</h3>
+            <p className="text-slate-600 mb-4 text-xs">Please complete before coming to lesson!</p>
+            <div className="flex items-center text-sm text-slate-500">
+              <FileText className="h-4 w-4 mr-2" />
+              <span>PDF Document</span>
+            </div>
+          </CardContent>
+          <CardFooter className="bg-slate-50 border-t border-slate-100">
+            <Button 
+              onClick={handleDownloadAssignment}
+              className="w-full bg-black text-white flex items-center justify-center"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Download Assignment
+            </Button>
+          </CardFooter>
         </Card>
 
         {/* Quiz Section */}

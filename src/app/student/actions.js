@@ -3,6 +3,7 @@
 import Lesson from "@/lib/modal/Lesson";
 import User from "@/lib/modal/User"; // Use User model instead of Teacher
 import connectToDB from "@/lib/mongodb";
+import s3 from "@/lib/s3";
 
 // Fetch lessons for a specific student and retrieve teacher details from Users collection
 export async function fetchLessonsByStudent(studentId) {
@@ -58,4 +59,29 @@ export async function updateLesson(lessonId, updatedData) {
     console.error("Error updating lesson:", error);
     throw new Error("Failed to update lesson");
   }
+}
+
+export async function getAssignmentDownloadUrl(lessonId) {
+  "use server";
+
+  await connectToDB();
+
+  // 1) Fetch the lesson doc. We'll assume pdfKey is stored in it.
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson || !lesson.pdfKey) {
+    throw new Error("No PDF found for this lesson");
+  }
+
+  // 2) Build the param object for getSignedUrl
+  const params = {
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: lesson.pdfKey,          // e.g. "assignments/67bd5fa7/17416_algebra.pdf"
+    Expires: 60 * 5,             // Link valid for 5 minutes (in seconds)
+  };
+
+  // 3) Generate the pre-signed URL
+  const signedUrl = s3.getSignedUrl("getObject", params);
+
+  // 4) Return it to the client
+  return signedUrl;
 }

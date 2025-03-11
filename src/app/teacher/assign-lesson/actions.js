@@ -3,6 +3,7 @@
 import { z } from "zod";
 import connectToDB from "@/lib/mongodb";
 import Lesson from "@/lib/modal/Lesson";
+import s3 from "@/lib/s3";
 
 // 1. Zod schema for quiz questions
 const quizQuestionSchema = z.object({
@@ -31,6 +32,7 @@ const formDataSchema = z.object({
  */
 export async function assignLessonAction(formData) {
   "use server";
+  console.log('Assign Lesson page form data:::', formData);
 
   // Extract fields from FormData
   const teacherId = formData.get("teacherId")?.toString() || "";
@@ -39,6 +41,7 @@ export async function assignLessonAction(formData) {
   const description = formData.get("description")?.toString() || "";
   const videoUrl = formData.get("videoUrl")?.toString() || "";
   const quizStr = formData.get("quiz")?.toString() || "[]";
+  const assignmentFile = formData.get("assignmentFile");
 
   // We won't handle `videoFile` for now
   // const videoFile = formData.get("videoFile"); <-- ignored
@@ -71,6 +74,38 @@ export async function assignLessonAction(formData) {
   // Connect to MongoDB
   await connectToDB();
 
+  //get the URL from AWS S3 bucket after uplaod 
+  let pdfKey = "";
+  if (assignmentFile && assignmentFile.size > 0) {
+    // 6) Upload to S3
+    try {
+      const fileName = assignmentFile.name;   // e.g. "homework.pdf"
+      const fileType = assignmentFile.type;   // e.g. "application/pdf"
+      const timeSuffix = Date.now();          // to make it unique
+
+      //File Upload from input field will result in File type to be Blob. AWS SDK expects Buffer, a readable string. 
+      //arrayBuffer will read the entire Blob into memory as an ArrayBuffer, we then use Buffer.from to create a node js comptaible buffer
+      // Convert Blob → ArrayBuffer → Buffer before calling s3.upload().
+      const arrayBuffer = await assignmentFile.arrayBuffer();
+      const fileBuffer = Buffer.from(arrayBuffer); 
+
+      const uploadParams = {
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: `assignments/${teacherId}/${timeSuffix}_${fileName}`, // or any unique path
+        Body: fileBuffer,
+        ContentType: fileType,
+      };
+
+      const uploadResult = await s3.upload(uploadParams).promise();
+      pdfKey = uploadParams.Key;
+       
+      console.log("PDF uploaded to S3:", pdfKey);
+    } catch (error) {
+      console.error("S3 upload error:", error);
+      throw new Error("Failed to upload PDF to S3");
+    }
+  }
+
   // Create a new Lesson in DB
   // We'll assume your Lesson schema has fields:
   //  - teacher (ObjectId)
@@ -85,6 +120,7 @@ export async function assignLessonAction(formData) {
     teacher: data.teacherId,  // must match the type in your schema
     student: data.studentId,
     quiz: data.quiz || [],
+    pdfKey: pdfKey || "", // S3 URL if uploaded
     // completed defaults to false
   });
 

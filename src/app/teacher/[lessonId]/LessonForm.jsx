@@ -13,6 +13,9 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Download,
+  Upload,
+  File,
 } from "lucide-react";
 
 import {
@@ -31,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAssignmentDownloadUrl } from "@/app/student/actions";
 
 // react-hook-form + zod
 import { useForm, useFieldArray } from "react-hook-form";
@@ -43,7 +47,9 @@ function getYoutubeEmbedUrl(url) {
   if (!url) return "";
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
-  return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}` : "";
+  return match && match[2].length === 11
+    ? `https://www.youtube.com/embed/${match[2]}`
+    : "";
 }
 
 export default function LessonForm() {
@@ -52,6 +58,7 @@ export default function LessonForm() {
 
   // ADD LOADING STATE
   const [loading, setLoading] = useState(false);
+  const [fileName, setFileName] = useState(null);
 
   const {
     register,
@@ -70,10 +77,16 @@ export default function LessonForm() {
       storageType: "",
       teacher: "",
       student: "",
+      pdfKey: "",
       completed: false,
       quiz: [],
+      newAssignmentFile: [], // default as empty array
     },
   });
+
+  // Destructure file input registration
+  const { ref: fileRef, onChange: fileOnChange, ...fileRest } =
+    register("newAssignmentFile");
 
   const { fields: quizFields, append, remove } = useFieldArray({
     control,
@@ -93,6 +106,7 @@ export default function LessonForm() {
           toast("Lesson not found!");
           return;
         }
+        console.log(lesson)
 
         // populate the form
         setValue("_id", lesson._id);
@@ -104,6 +118,7 @@ export default function LessonForm() {
         setValue("teacher", lesson.teacher || "");
         setValue("student", lesson.student || "");
         setValue("quiz", lesson.quiz || []);
+        setValue("pdfKey", lesson.pdfKey || "");
       } catch (error) {
         console.error("Error fetching lesson:", error);
         toast("Error loading lesson data");
@@ -116,20 +131,32 @@ export default function LessonForm() {
     loadLesson();
   }, [lessonId, setValue]);
 
-  const onSubmit = async (formData) => {
-    const updatedData = {
-      title: formData.title,
-      description: formData.description || "",
-      videoUrl: formData.videoUrl,
-      storageType: formData.storageType || "external",
-      completed: formData.completed,
-      quiz: formData.quiz || [],
-      teacher: formData.teacher || null,
-      student: formData.student || null,
-    };
+  const onSubmit = async (data) => {
+    console.log("File Form data:", data.newAssignmentFile);
+    const formData = new FormData();
+    formData.append("lessonId", lessonId);
+
+    formData.append("title", data.title);
+    formData.append("description", data.description || "");
+    formData.append("videoUrl", data.videoUrl || "");
+    formData.append("completed", data.completed ? "true" : "false");
+
+    // The old PDF key (now in pdfKey)
+    formData.append("oldKey", data.pdfKey || "");
+
+    // The new file (if user selected one)
+    if (data.newAssignmentFile && data.newAssignmentFile.length > 0) {
+      const file = data.newAssignmentFile[0];
+      if (file?.size > 0) {
+        formData.append("newFile", file);
+      }
+    }
+
+    // Quiz as JSON
+    formData.append("quiz", JSON.stringify(data.quiz || []));
 
     try {
-      await updateLesson(lessonId, updatedData);
+      await updateLesson(formData);
       toast("Lesson Updated");
       router.push("/teacher");
     } catch (err) {
@@ -138,16 +165,27 @@ export default function LessonForm() {
     }
   };
 
+  const handleDownloadAssignment = async () => {
+    try {
+      const url = await getAssignmentDownloadUrl(lessonId);
+
+      // Create an <a> element dynamically
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.target = "_blank"; // Open in a new tab
+      anchor.rel = "noopener noreferrer"; // Security best practice
+      anchor.click(); // Simulate a click event
+    } catch (error) {
+      console.error("Failed to get presigned URL:", error);
+    }
+  };
+
   const showData = watch();
 
-  // IF LOADING, SHOW A SPINNER OR LOADING MESSAGE
   if (loading) {
-    return (
-      <Spinner />
-    );
+    return <Spinner />;
   }
 
-  // OTHERWISE, SHOW THE FORM
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-4xl mx-auto">
       <Card className="border-gray-200 shadow-sm">
@@ -156,7 +194,9 @@ export default function LessonForm() {
             <Book className="h-5 w-5 text-green-600" />
             <CardTitle>Edit Lesson</CardTitle>
           </div>
-          <CardDescription>Update the lesson details, content, and quiz questions</CardDescription>
+          <CardDescription>
+            Update the lesson details, content, and quiz questions
+          </CardDescription>
         </CardHeader>
 
         <Tabs defaultValue="details" className="w-full">
@@ -181,7 +221,9 @@ export default function LessonForm() {
                   {...register("title")}
                 />
                 {errors.title && (
-                  <p className="text-sm text-red-500">{errors.title.message}</p>
+                  <p className="text-sm text-red-500">
+                    {errors.title.message}
+                  </p>
                 )}
               </div>
 
@@ -194,6 +236,64 @@ export default function LessonForm() {
                   placeholder="Enter detailed description"
                   {...register("description")}
                 />
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">
+                  Assignment PDF
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  View Current Assignment PDF.
+                </p>
+
+                <Button
+                  onClick={handleDownloadAssignment}
+                  className="bg-black text-white flex items-center justify-center mb-4"
+                  type="button"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Assignment
+                </Button>
+
+                <p className="text-xs text-gray-500 mb-2">
+                  Upload a new PDF. Your previous assignment will be replaced.
+                </p>
+                {/* File Upload Field */}
+                <label
+                  htmlFor="newAssignmentFile"
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100"
+                >
+                  <Upload className="text-gray-500" size={18} />
+                  <span>Upload PDF</span>
+                  <input
+                    id="newAssignmentFile"
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    ref={fileRef}
+                    onChange={(e) => {
+                      // Let RHF process the change
+                      fileOnChange(e);
+                      // Update local state for file name
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setFileName(file.name);
+                      }
+                    }}
+                    {...fileRest}
+                  />
+                  {fileName && (
+                    <div className="mt-2 flex items-center space-x-2 text-gray-700">
+                      <File className="text-red-500" size={18} />
+                      <p className="text-sm">{fileName}</p>
+                    </div>
+                  )}
+                </label>
+                {errors.assignmentFile && (
+                  <p className="text-red-500 text-sm">
+                    {errors.assignmentFile.message}
+                  </p>
+                )}
               </div>
 
               {/* Completed Switch */}
@@ -231,7 +331,9 @@ export default function LessonForm() {
                 />
                 <div className="flex items-center text-xs text-gray-500 gap-1">
                   <ExternalLink className="h-3 w-3" />
-                  <span>Storage Type: {showData.storageType || "external"}</span>
+                  <span>
+                    Storage Type: {showData.storageType || "external"}
+                  </span>
                 </div>
               </div>
 
@@ -253,10 +355,7 @@ export default function LessonForm() {
           <TabsContent value="quiz">
             <CardContent className="space-y-6 pt-4">
               {quizFields.map((field, questionIndex) => (
-                <Card
-                  key={field.id}
-                  className="border border-gray-200"
-                >
+                <Card key={field.id} className="border border-gray-200">
                   <CardHeader className="bg-gray-50 pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -296,10 +395,7 @@ export default function LessonForm() {
                         className="space-y-3"
                       >
                         {field.options.map((option, optIndex) => (
-                          <div
-                            key={optIndex}
-                            className="flex items-center space-x-2"
-                          >
+                          <div key={optIndex} className="flex items-center space-x-2">
                             <RadioGroupItem
                               value={optIndex.toString()}
                               id={`q${questionIndex}-option-${optIndex}`}

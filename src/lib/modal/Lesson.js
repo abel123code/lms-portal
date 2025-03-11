@@ -7,6 +7,7 @@ const LessonSchema = new mongoose.Schema({
   storageType: { type: String, enum: ["s3", "external"], default: "external" }, // Determines if video is stored in S3 or externally
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", required: true }, // Teacher who assigned the lesson
   student: { type: mongoose.Schema.Types.ObjectId, ref: "Student", required: true }, // Student assigned to this lesson
+  pdfKey: { type: String, default: ""}, //Store the s3 URL for this assignment PDF
   quiz: [
     {
       question: { type: String, required: true },
